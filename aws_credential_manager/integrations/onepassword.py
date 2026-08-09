@@ -38,6 +38,23 @@ class OnePasswordClient:
             return None
         return cast(dict, json.loads(result.stdout))
 
+    def create_item(self, title: str, category: str = "login", **fields: str) -> None:
+        """Create a new 1Password item with the given fields.
+
+        Usage: create_item("my-item", category="login", username="bob", password="secret")
+        For typed fields use the 1Password notation in the key:
+            create_item("my-item", **{"field[text]": "value"})
+        """
+        cmd = [
+            'op', 'item', 'create',
+            '--vault', self.vault_name,
+            '--title', title,
+            '--category', category,
+        ]
+        for key, value in fields.items():
+            cmd.append(f'{key}={value}')
+        subprocess.run(cmd, check=True, capture_output=True)
+
     def edit_item(self, title: str, **fields: str) -> None:
         """Update fields on a 1Password item.
 

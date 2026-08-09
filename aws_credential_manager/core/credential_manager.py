@@ -73,10 +73,18 @@ class CredentialManager:
                 continue
 
             try:
-                item_title = self.get_item_title(pname)
+                item_title = self.passwords.get_item_title(pname)
                 item_data = self.op.get_item(item_title)
                 if not item_data:
-                    print(f"✗ 1Password item not found: {item_title}")
+                    # Create the 1Password item if it doesn't exist yet
+                    self.op.create_item(item_title, category="login", **{
+                        'aws_access_key_id[text]': profile['access_key_id'],
+                        'aws_secret_access_key[password]': profile['secret_access_key'],
+                        'credential_import_date[text]': datetime.now().isoformat(),
+                    })
+                    print(f"✓ Created 1Password item and imported AWS credentials: "
+                          f"{pname} - item title: {item_title}")
+                    success_count += 1
                     continue
 
                 has_access_key = (

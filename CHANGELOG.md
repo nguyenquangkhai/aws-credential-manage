@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `import-all-credentials` / `import-credentials` now create the 1Password item
+  automatically when it does not exist instead of failing.
+- `OnePasswordClient.create_item` for creating new 1Password items via the CLI.
 - Test suite (`tests/`) covering `utils/` and `integrations/` with mocked
   subprocess calls — no real AWS or 1Password access required.
 - GitHub Actions CI running ruff, mypy, and pytest on Python 3.11–3.13.

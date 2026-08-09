@@ -78,6 +78,26 @@ class TestGetItem:
         assert client.get_item("missing") is None
 
 
+class TestCreateItem:
+    def test_builds_field_args(self, client, mocker):
+        run = mocker.patch(MODULE).run
+        run.return_value = FakeCompletedProcess()
+        client.create_item("my-item", **{"password[password]": "secret", "notes": "hi"})
+        args = run.call_args.args[0]
+        assert args[:7] == ["op", "item", "create", "--vault", "TestVault", "--title", "my-item"]
+        assert "--category" in args and "login" in args
+        assert "password[password]=secret" in args
+        assert "notes=hi" in args
+
+    def test_custom_category(self, client, mocker):
+        run = mocker.patch(MODULE).run
+        run.return_value = FakeCompletedProcess()
+        client.create_item("my-item", category="api-credential", username="bob")
+        args = run.call_args.args[0]
+        assert "--category" in args and "api-credential" in args
+        assert "username=bob" in args
+
+
 class TestEditItem:
     def test_builds_field_args(self, client, mocker):
         run = mocker.patch(MODULE).run

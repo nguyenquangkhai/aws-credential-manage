@@ -203,11 +203,11 @@ class AccessKeyManager:
             print("    3. Update local credentials file (~/.aws/credentials)")
             print("    4. Wait for AWS credential propagation (3 seconds + retry logic)")
             print("    5. Test new credentials (up to 5 attempts with exponential backoff)")
-            print("    6. Record access key refresh metadata in 1Password")
+            print("    6. Store new access key pair and refresh metadata in 1Password")
             print("    7. Delete old access key")
             print(
-                "  Note: Access keys will only be stored in ~/.aws/credentials "
-                "(not in 1Password)"
+                "  Note: New access key pair will be stored in both "
+                "~/.aws/credentials and 1Password"
             )
             print("  Safety: Automatic rollback and cleanup if any step fails")
             return True
@@ -274,29 +274,56 @@ class AccessKeyManager:
 
             return False
 
-        # Step 6: Record metadata in 1Password
+        # Step 6: Store new access key pair and metadata in 1Password
+        op_saved = False
         try:
             item_title = self.passwords.get_item_title(profile_name)
-            self.op.edit_item(item_title,
-                              **{
-                                  'last_access_key_refresh[text]': datetime.now().isoformat(),
-                                  'current_access_key_id[text]': new_key['AccessKeyId']
-                              })
-            print(f"✓ Updated 1Password metadata for: {profile_name} with item title: {item_title}")
-        except subprocess.CalledProcessError:
-            print("⚠️ Failed to update 1Password metadata, but access key refresh succeeded")
+            item_data = self.op.get_item(item_title)
+            if not item_data:
+                print(f"✗ 1Password item not found: {item_title}")
+                print(
+                    f"  Please create an item named '{item_title}' in vault "
+                    f"'{self.op.vault_name}', then run refresh again"
+                )
+            else:
+                fields = {
+                    'aws_access_key_id[text]': new_key['AccessKeyId'],
+                    'aws_secret_access_key[password]': new_key['SecretAccessKey'],
+                    'current_access_key_id[text]': new_key['AccessKeyId'],
+                    'last_access_key_refresh[text]': datetime.now().isoformat(),
+                }
+                if old_access_key_id:
+                    fields['previous_access_key_id[text]'] = old_access_key_id
 
-        # Step 7: Delete old access key
+                self.op.edit_item(item_title, **fields)
+                print(
+                    f"✓ Stored new access key pair and metadata in 1Password "
+                    f"for: {profile_name} (item: {item_title})"
+                )
+                op_saved = True
+        except Exception as e:
+            stderr = getattr(e, 'stderr', '') or ''
+            print(f"⚠️ Failed to update 1Password item: {e}")
+            if stderr:
+                print(f"  op CLI error: {stderr.strip()}")
+
+        # Step 7: Delete old access key (only if the new key is safely stored)
         if old_access_key_id:
-            try:
-                self.aws.delete_access_key(profile_name, username, old_access_key_id)
-                print(f"✓ Deleted old access key: {old_access_key_id}")
-            except Exception:
-                print(f"⚠️ Failed to delete old access key: {old_access_key_id}")
-                print("  New key is working, but please manually delete the old one")
+            if op_saved:
+                try:
+                    self.aws.delete_access_key(profile_name, username, old_access_key_id)
+                    print(f"✓ Deleted old access key: {old_access_key_id}")
+                except Exception:
+                    print(f"⚠️ Failed to delete old access key: {old_access_key_id}")
+                    print("  New key is working, but please manually delete the old one")
+            else:
+                print(
+                    f"⚠️ Keeping old access key {old_access_key_id} as fallback "
+                    "because the new key could not be stored in 1Password"
+                )
 
         print(f"✓ Successfully refreshed access key for: {profile_name}")
-        return True
+        return op_saved
 
     def refresh_all(self, dry_run: bool = False) -> bool:
         """Refresh access keys for all profiles."""

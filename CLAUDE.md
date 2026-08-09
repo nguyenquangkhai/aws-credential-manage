@@ -151,7 +151,7 @@ real environment variable > `.env` file > built-in default.
 - No credentials are logged or stored in plaintext
 - All password operations use secure generation methods
 - Failed operations don't expose sensitive data in error messages
-- Access keys are stored only in `~/.aws/credentials` (not in 1Password)
+- Access keys are stored in both `~/.aws/credentials` and 1Password (concealed/password fields), so the secret key is never lost after rotation
 - Access key refresh creates backup files automatically before making changes
 - AWS 2-key limit enforced: refresh fails if user already has 2 active keys
 - Comprehensive rollback mechanisms in case of refresh failures
