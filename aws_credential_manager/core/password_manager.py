@@ -39,7 +39,7 @@ class PasswordManager:
         self.aws = aws
         self.op = op
         self.config = config
-    
+
     def get_item_title(self, profile_name: str) -> str:
         """Get the 1Password item title for a given AWS profile name."""
         mapping = self.config.get_profile_mapping(profile_name)
@@ -93,7 +93,10 @@ class PasswordManager:
                     'source': '1Password (fallback)',
                 }
         except (ValueError, TypeError) as e:
-            print(f"✗ Failed to get 1Password timestamp for {profile_name} that have item title {item_title}: {e}")
+            print(
+                f"✗ Failed to get 1Password timestamp for {profile_name} "
+                f"that have item title {item_title}: {e}"
+            )
 
         return None
 
