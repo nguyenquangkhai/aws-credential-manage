@@ -75,7 +75,7 @@ class CredentialManager:
                 continue
 
             try:
-                item_title = self.get_item_title(pname)
+                item_title = self.passwords.get_item_title(pname)
                 item_data = self.op.get_item(item_title)
                 if not item_data:
                     print(f"✗ 1Password item not found: {item_title}")

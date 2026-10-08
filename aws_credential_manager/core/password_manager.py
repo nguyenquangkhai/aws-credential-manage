@@ -43,8 +43,9 @@ class PasswordManager:
     def get_item_title(self, profile_name: str) -> str:
         """Get the 1Password item title for a given AWS profile name."""
         mapping = self.config.get_profile_mapping(profile_name)
-        if mapping and 'onepassword_title' in mapping:
-            return mapping['onepassword_title']
+        item_title = mapping.get('onepassword_title') if mapping else None
+        if isinstance(item_title, str):
+            return item_title
         return profile_name  # Fallback to profile name if no mapping exists
 
     def get_password_age(self, profile_name: str) -> dict | None:
