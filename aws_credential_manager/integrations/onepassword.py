@@ -33,6 +33,8 @@ def _is_missing_item(stderr: str) -> bool:
 class OnePasswordClient:
     """Thin wrapper around 1Password CLI commands."""
 
+    display_name = "1Password"
+
     def __init__(self, vault_name: str = DEFAULT_VAULT):
         self.vault_name = vault_name
 

@@ -50,6 +50,9 @@ DEFAULT_ACCESS_KEY_MAX_AGE = 90
 # Default vault name (env-overridable; built-in default matches docs).
 DEFAULT_VAULT = os.environ.get("DEFAULT_VAULT", "AWS")
 
+# Default vault type (1password or bitwarden; env-overridable).
+DEFAULT_VAULT_TYPE = os.environ.get("DEFAULT_VAULT_TYPE", "1password")
+
 # Profile mapping filename (env-overridable).
 PROFILE_MAPPING_FILE = os.environ.get("PROFILE_MAPPING_FILE", "profile_mapping.json")
 
@@ -70,7 +73,7 @@ class ConfigManager:
         return _resolve_mapping_path(filename, PROJECT_ROOT)
 
     def load_profile_mappings(self) -> dict[str, object] | None:
-        """Return every 1Password mapping entry, or None if the file is unusable.
+        """Return every vault mapping entry, or None if the file is unusable.
 
         None means the mapping file is missing or malformed, which is different
         from a readable file that simply has no entry for a given profile.
@@ -92,7 +95,7 @@ class ConfigManager:
         return profile_mappings
 
     def get_profile_mapping(self, profile_name: str) -> dict[str, object] | None:
-        """Return the 1Password mapping entry for a profile, or None."""
+        """Return the vault mapping entry for a profile, or None."""
         profile_mappings = self.load_profile_mappings()
         if profile_mappings is None:
             return None

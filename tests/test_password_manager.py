@@ -18,6 +18,8 @@ class FakeAWS:
 
 
 class FakeOnePassword:
+    display_name = "1Password"
+
     def __init__(self, item=None):
         self.item = item
         self.edits = []
@@ -101,6 +103,18 @@ def test_onepassword_failure_is_not_reported_as_missing_item(capsys):
     assert "not currently signed in" in out
     assert "item not found" not in out
     assert "AWS password left unchanged" in out
+
+
+def test_messages_use_vault_display_name(capsys):
+    """Output must name the active vault, not always 1Password."""
+    manager, _, op = make_manager(item={"id": "abc", "password": "current-password"})
+    op.display_name = "Bitwarden"
+
+    assert manager.update_profile("mapped-profile") is True
+    out = capsys.readouterr().out
+    assert "Updated Bitwarden password for:" in out
+    assert "Successfully updated both AWS and Bitwarden for:" in out
+    assert "1Password" not in out
 
 
 def test_failed_aws_call_does_not_print_the_password(capsys):

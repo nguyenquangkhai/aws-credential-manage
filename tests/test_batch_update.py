@@ -192,7 +192,7 @@ def test_cli_batch_update_dispatches_operation(monkeypatch):
     calls = []
 
     class FakeManager:
-        def __init__(self, credentials_path, vault):
+        def __init__(self, credentials_path, vault, vault_type):
             pass
 
         def check_op_session(self):
@@ -219,7 +219,7 @@ def test_cli_batch_update_returns_nonzero_when_batch_fails(monkeypatch):
     import importlib
 
     class FakeManager:
-        def __init__(self, credentials_path, vault):
+        def __init__(self, credentials_path, vault, vault_type):
             pass
 
         def check_op_session(self):

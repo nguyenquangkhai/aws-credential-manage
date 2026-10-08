@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 
 from ..integrations.aws_client import AWSClient
-from ..integrations.onepassword import OnePasswordClient
+from ..integrations.vault_protocol import PasswordVault
 from ..utils.config import DEFAULT_ACCESS_KEY_MAX_AGE, ConfigManager
 from .password_manager import PasswordManager
 
@@ -15,7 +15,7 @@ from .password_manager import PasswordManager
 class AccessKeyManager:
     """Manages AWS access key rotation with rollback support."""
 
-    def __init__(self, aws: AWSClient, op: OnePasswordClient, config: ConfigManager):
+    def __init__(self, aws: AWSClient, op: PasswordVault, config: ConfigManager):
         self.aws = aws
         self.op = op
         self.config = config
@@ -209,18 +209,18 @@ class AccessKeyManager:
 
         if dry_run:
             print(f"[DRY RUN] Would refresh AWS access key for '{profile_name}':")
-            print(f"  1Password Item: {profile_name}")
+            print(f"  {self.op.display_name} Item: {profile_name}")
             print("  Actions:")
             print("    1. Get current user info and access keys")
             print("    2. Create new access key pair")
             print("    3. Update local credentials file (~/.aws/credentials)")
             print("    4. Wait for AWS credential propagation (3 seconds + retry logic)")
             print("    5. Test new credentials (up to 5 attempts with exponential backoff)")
-            print("    6. Record access key refresh metadata in 1Password")
+            print(f"    6. Record access key refresh metadata in {self.op.display_name}")
             print("    7. Delete old access key")
             print(
                 "  Note: Access keys will only be stored in ~/.aws/credentials "
-                "(not in 1Password)"
+                f"(not in {self.op.display_name})"
             )
             print("  Safety: Automatic rollback and cleanup if any step fails")
             return True
@@ -248,11 +248,14 @@ class AccessKeyManager:
                 print(f"✗ Unable to resolve MFA device: {self._describe_aws_error(error)}")
                 return False
             except Exception as error:
-                print(f"✗ Unable to retrieve MFA code from 1Password: {error}")
+                print(
+                    f"✗ Unable to retrieve MFA code from "
+                    f"{self.op.display_name}: {error}"
+                )
                 return False
 
             if not (len(mfa_code) == 6 and mfa_code.isdecimal()):
-                print("✗ 1Password returned an invalid MFA code")
+                print(f"✗ {self.op.display_name} returned an invalid MFA code")
                 return False
             mfa_session = self.aws.get_mfa_session(
                 profile_name, mfa_serial_number, mfa_code
@@ -310,7 +313,7 @@ class AccessKeyManager:
 
             return False
 
-        # Step 6: Record metadata in 1Password
+        # Step 6: Record metadata in the vault
         try:
             item_title = self.passwords.get_item_title(profile_name)
             self.op.edit_item(item_title,
@@ -318,9 +321,15 @@ class AccessKeyManager:
                                   'last_access_key_refresh[text]': datetime.now().isoformat(),
                                   'current_access_key_id[text]': new_key['AccessKeyId']
                               })
-            print(f"✓ Updated 1Password metadata for: {profile_name} with item title: {item_title}")
+            print(
+                f"✓ Updated {self.op.display_name} metadata for: {profile_name} "
+                f"with item title: {item_title}"
+            )
         except subprocess.CalledProcessError:
-            print("⚠️ Failed to update 1Password metadata, but access key refresh succeeded")
+            print(
+                f"⚠️ Failed to update {self.op.display_name} metadata, "
+                "but access key refresh succeeded"
+            )
 
         # Step 7: Delete old access key
         if old_access_key_id:
@@ -369,7 +378,7 @@ class AccessKeyManager:
 
                 status = "🔴 OUTDATED" if access_key_info['outdated'] else "🟢 OK"
                 print(f"{status} {profile_name}")
-                print(f"    1Password: {profile_name}")
+                print(f"    {self.op.display_name}: {profile_name}")
                 print(f"    User: {access_key_info['username']}")
                 print(f"    Access Key: {access_key_info['access_key_id']}")
                 print(f"    Age: {access_key_info['age_days']} days")
@@ -386,7 +395,7 @@ class AccessKeyManager:
                     })
             else:
                 print(f"⚠️  UNKNOWN {profile_name}")
-                print(f"    1Password: {profile_name}")
+                print(f"    {self.op.display_name}: {profile_name}")
                 print("    Could not check access key age")
                 print()
 

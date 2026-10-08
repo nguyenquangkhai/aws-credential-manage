@@ -4,7 +4,8 @@ import subprocess
 from datetime import datetime
 
 from ..integrations.aws_client import AWSClient
-from ..integrations.onepassword import OnePasswordClient, OnePasswordError
+from ..integrations.onepassword import OnePasswordError
+from ..integrations.vault_protocol import PasswordVault
 from ..utils.config import DEFAULT_PASSWORD_MAX_AGE, ConfigManager
 
 
@@ -34,15 +35,15 @@ def _describe_failure(error: Exception, *secrets: str | None) -> str:
 
 
 class PasswordManager:
-    """Manages AWS console password rotation with 1Password sync."""
+    """Manages AWS console password rotation with vault sync."""
 
-    def __init__(self, aws: AWSClient, op: OnePasswordClient, config: ConfigManager):
+    def __init__(self, aws: AWSClient, op: PasswordVault, config: ConfigManager):
         self.aws = aws
         self.op = op
         self.config = config
 
     def get_item_title(self, profile_name: str) -> str:
-        """Get the 1Password item title for a given AWS profile name."""
+        """Get the vault item title for a given AWS profile name."""
         mapping = self.config.get_profile_mapping(profile_name)
         item_title = mapping.get('onepassword_title') if mapping else None
         if isinstance(item_title, str):
@@ -50,7 +51,7 @@ class PasswordManager:
         return profile_name  # Fallback to profile name if no mapping exists
 
     def get_password_age(self, profile_name: str) -> dict | None:
-        """Get password age, preferring AWS IAM credential report over 1Password."""
+        """Get password age, preferring AWS IAM credential report over the vault."""
         # --- Primary source: AWS IAM credential report ---
         try:
             aws_timestamp = self.aws.get_password_last_changed(profile_name)
@@ -66,7 +67,7 @@ class PasswordManager:
         except Exception as e:
             print(f"⚠ Could not fetch AWS password age for {profile_name}: {e}")
 
-        # --- Fallback: 1Password metadata ---
+        # --- Fallback: vault metadata ---
         item_title = self.get_item_title(profile_name)
         try:
             item_data = self.op.get_item(item_title)
@@ -92,11 +93,11 @@ class PasswordManager:
                     'last_update': last_update,
                     'age_days': age_days,
                     'expired': age_days >= DEFAULT_PASSWORD_MAX_AGE,
-                    'source': '1Password (fallback)',
+                    'source': f'{self.op.display_name} (fallback)',
                 }
         except (ValueError, TypeError) as e:
             print(
-                f"✗ Failed to get 1Password timestamp for {profile_name} "
+                f"✗ Failed to get {self.op.display_name} timestamp for {profile_name} "
                 f"that have item title {item_title}: {e}"
             )
 
@@ -105,14 +106,14 @@ class PasswordManager:
     def update_profile(self, profile_name: str, dry_run: bool = False) -> bool:
 
         item_title = self.get_item_title(profile_name)
-        """Update AWS console password and store in 1Password."""
+        """Update AWS console password and store in the vault."""
         if dry_run:
             print(f"[DRY RUN] Would update AWS console password for '{profile_name}':")
-            print(f"  1Password Item: {item_title}")
+            print(f"  {self.op.display_name} Item: {item_title}")
             print("  Actions:")
             print("    1. Generate secure password (18+ chars, meets AWS policy)")
             print("    2. Update AWS console password via IAM API")
-            print("    3. Store new password in 1Password")
+            print(f"    3. Store new password in {self.op.display_name}")
             return True
 
         # Check if AWS credentials are valid
@@ -128,7 +129,7 @@ class PasswordManager:
             print(f"  Note: Fix AWS credentials for {profile_name} to enable password updates")
             return False
 
-        # Confirm the 1Password item exists before rotating anything. A password
+        # Confirm the vault item exists before rotating anything. A password
         # changed in AWS but not stored here would be unrecoverable.
         try:
             item_data = self.op.get_item(item_title)
@@ -138,13 +139,13 @@ class PasswordManager:
             return False
 
         if not item_data:
-            print(f"✗ 1Password item not found: {item_title}")
+            print(f"✗ {self.op.display_name} item not found: {item_title}")
             print(f"  Skipping {profile_name}: AWS password left unchanged")
             return False
 
         old_password = self.op.get_field_value(item_data, 'password')
         if not old_password:
-            print(f"✗ 1Password password field is missing: {item_title}")
+            print(f"✗ {self.op.display_name} password field is missing: {item_title}")
             print(f"  Skipping {profile_name}: AWS password left unchanged")
             return False
 
@@ -160,18 +161,18 @@ class PasswordManager:
                   f"{_describe_failure(e, old_password, new_password)}")
             return False
 
-        # Update 1Password
+        # Update the vault
         try:
             self.op.edit_item(item_title,
                               password=new_password,
                               **{'last_password_update[text]': datetime.now().isoformat()})
-            print(f"✓ Updated 1Password password for: {item_title}")
+            print(f"✓ Updated {self.op.display_name} password for: {item_title}")
         except Exception as e:
-            print(f"✗ Failed to update 1Password for {item_title}: "
+            print(f"✗ Failed to update {self.op.display_name} for {item_title}: "
                   f"{_describe_failure(e, old_password, new_password)}")
             return False
 
-        print(f"✓ Successfully updated both AWS and 1Password for: {profile_name}")
+        print(f"✓ Successfully updated both AWS and {self.op.display_name} for: {profile_name}")
         return True
 
     def list_expired(self, max_age_days: int | None = None) -> list[dict]:
@@ -191,7 +192,7 @@ class PasswordManager:
                 password_info['expired'] = password_info['age_days'] >= max_age_days
                 status = "🔴 EXPIRED" if password_info['expired'] else "🟢 OK"
                 print(f"{status} {profile_name}")
-                print(f"    1Password: {profile_name}")
+                print(f"    {self.op.display_name}: {profile_name}")
 
                 if 'username' in password_info:
                     print(f"    User: {password_info['username']}")
@@ -214,7 +215,7 @@ class PasswordManager:
                     })
             else:
                 print(f"⚠️  UNKNOWN {profile_name}")
-                print(f"    1Password: {profile_name}")
+                print(f"    {self.op.display_name}: {profile_name}")
                 print("    Could not check password age")
                 print()
 

@@ -1,6 +1,8 @@
-"""External service integrations for AWS and 1Password."""
+"""External service integrations for AWS and password vaults."""
 
 from .aws_client import AWSClient
+from .bitwarden import BitwardenClient
 from .onepassword import OnePasswordClient
+from .vault_protocol import PasswordVault
 
-__all__ = ["AWSClient", "OnePasswordClient"]
+__all__ = ["AWSClient", "BitwardenClient", "OnePasswordClient", "PasswordVault"]

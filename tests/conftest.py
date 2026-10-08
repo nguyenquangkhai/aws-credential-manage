@@ -29,6 +29,19 @@ def aws_credentials_file(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.fixture
+def bitwarden_item() -> dict:
+    """A minimal Bitwarden item fixture."""
+    return {
+        "id": "item-123",
+        "name": "test-item",
+        "fields": [
+            {"name": "username", "value": "bob", "type": 1},
+            {"name": "password", "value": "hunter2", "type": 2},
+        ],
+    }
+
+
 class FakeCompletedProcess:
     """Stand-in for subprocess.CompletedProcess used in tests."""
 

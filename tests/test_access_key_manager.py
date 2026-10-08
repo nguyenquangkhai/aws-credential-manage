@@ -48,6 +48,8 @@ class FakeAws:
 
 
 class FakeOnePassword:
+    display_name = "1Password"
+
     def get_one_time_password(self, title):
         assert title == "profile-one"
         return "123456"
