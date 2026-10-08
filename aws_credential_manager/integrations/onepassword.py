@@ -9,6 +9,27 @@ from typing import cast
 from ..utils.config import DEFAULT_PASSWORD_LENGTH, DEFAULT_VAULT
 
 
+class OnePasswordError(RuntimeError):
+    """A 1Password CLI call failed for a reason other than a missing item."""
+
+
+# Phrases the CLI uses when the item itself does not exist. Anything else --
+# an expired session, an unknown vault, an unreachable service -- is a real
+# failure and must not be reported as "item not found".
+_MISSING_ITEM_PHRASES = (
+    "isn't an item",
+    "isn t an item",
+    "no item matches",
+    "not found",
+)
+
+
+def _is_missing_item(stderr: str) -> bool:
+    """Return True only when stderr says the item genuinely does not exist."""
+    lowered = stderr.lower()
+    return any(phrase in lowered for phrase in _MISSING_ITEM_PHRASES)
+
+
 class OnePasswordClient:
     """Thin wrapper around 1Password CLI commands."""
 
@@ -27,16 +48,27 @@ class OnePasswordClient:
             return False
 
     def get_item(self, title: str) -> dict | None:
-        """Get a 1Password item by title. Returns None if not found."""
+        """Get a 1Password item by title.
+
+        Returns None only when the item genuinely does not exist. Every other
+        CLI failure raises OnePasswordError carrying the CLI's own message,
+        so a dropped session is never mistaken for a missing item.
+        """
         result = subprocess.run([
             'op', 'item', 'get', title,
             '--vault', self.vault_name,
             '--format', 'json'
         ], capture_output=True, text=True)
 
-        if result.returncode != 0:
+        if result.returncode == 0:
+            return cast(dict, json.loads(result.stdout))
+
+        stderr = (result.stderr or "").strip()
+        if _is_missing_item(stderr):
             return None
-        return cast(dict, json.loads(result.stdout))
+        raise OnePasswordError(
+            f"1Password lookup failed for '{title}': {stderr or 'no error output'}"
+        )
 
     def edit_item(self, title: str, **fields: str) -> None:
         """Update fields on a 1Password item.

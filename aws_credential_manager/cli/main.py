@@ -11,7 +11,7 @@ from ..utils.config import (
 )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description='AWS Credential Password Updater with 1Password'
     )
@@ -116,7 +116,26 @@ def main() -> int:
         help=f'Maximum access key age in days (default: {DEFAULT_ACCESS_KEY_MAX_AGE})',
     )
 
-    args = parser.parse_args()
+    # Batch update
+    batch_parser = subparsers.add_parser(
+        'batch-update',
+        help='Update passwords and/or refresh access keys for selected profiles',
+    )
+    batch_parser.add_argument(
+        'operation',
+        choices=('password', 'access-key', 'both'),
+        help='Credential operation to run',
+    )
+    batch_parser.add_argument(
+        '--exclude',
+        dest='excluded_profiles',
+        action='append',
+        default=[],
+        metavar='PROFILE',
+        help='Profile to skip; may be repeated',
+    )
+
+    args = parser.parse_args(argv)
 
     if not args.command:
         parser.print_help()
@@ -174,6 +193,14 @@ def main() -> int:
             mgr.quarterly_update(
                 args.password_max_age, args.access_key_max_age, args.dry_run
             )
+        elif args.command == 'batch-update':
+            if not mgr.check_op_session():
+                return 1
+            return 0 if mgr.batch_update(
+                args.operation,
+                args.excluded_profiles,
+                args.dry_run,
+            ) else 1
     except Exception as e:
         print(f"Error: {e}")
         return 1

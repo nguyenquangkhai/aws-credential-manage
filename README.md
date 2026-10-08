@@ -63,6 +63,43 @@ python3 aws_credential_updater.py refresh-access-key <profile_name>
 python3 aws_credential_updater.py quarterly-update
 ```
 
+### Batch Credential Maintenance
+
+The shortcut processes every configured AWS profile that has a 1Password
+mapping. Profiles without one — including the `default` section, which is
+usually an alias of another profile — are skipped and reported, so the same IAM
+user is never rotated twice in a single run. Use repeated `--exclude` options to
+skip further profiles, and use `--dry-run` to preview changes.
+
+```bash
+# Rotate passwords for every configured profile
+./batch_credentials.sh password
+
+# Refresh access keys while skipping selected profiles
+./batch_credentials.sh access-key --exclude profile-a --exclude profile-b
+
+# Run both operations without making changes
+./batch_credentials.sh both --dry-run
+```
+
+The equivalent direct Python commands are:
+
+```bash
+python3 aws_credential_updater.py batch-update password
+python3 aws_credential_updater.py batch-update access-key --exclude profile-a
+python3 aws_credential_updater.py --dry-run batch-update both
+```
+
+`password` rotates IAM console passwords and synchronizes them with 1Password.
+`access-key` replaces AWS access keys and updates the local credentials file.
+`both` runs the password rotation before the access-key refresh for each
+profile. All configured profiles are selected by default, and `--exclude` may
+be repeated.
+
+Processing continues after a profile failure, prints a final summary, and
+exits non-zero if any selected operation fails. Use an active 1Password CLI
+session and valid AWS CLI profiles before running a non-dry-run command.
+
 ## Documentation
 
 See [CLAUDE.md](CLAUDE.md) for comprehensive usage documentation, including:

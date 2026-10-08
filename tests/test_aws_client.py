@@ -36,8 +36,19 @@ class TestUpdateLoginProfile:
         args = run.call_args.args[0]
         assert args[:3] == ["aws", "iam", "update-login-profile"]
         assert "--user-name" in args and "bob" in args
-        assert "--password" in args and "pw123" in args
+        assert "--password=pw123" in args
         assert "--no-password-reset-required" in args
+
+    def test_password_starting_with_hyphen_is_not_parsed_as_an_option(
+        self, client, mocker
+    ):
+        """A bare '--password', '-pw' pair makes the AWS CLI exit 252."""
+        run = mocker.patch(MODULE).run
+        run.return_value = FakeCompletedProcess()
+        client.update_login_profile("dev", "bob", "-xl%x6};^wRi")
+        args = run.call_args.args[0]
+        assert "--password=-xl%x6};^wRi" in args
+        assert "-xl%x6};^wRi" not in args
 
 
 class TestListAccessKeys:

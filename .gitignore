@@ -26,6 +26,7 @@ venv/
 .idea/
 *.swp
 *.swo
+.worktrees/
 
 # macOS
 .DS_Store

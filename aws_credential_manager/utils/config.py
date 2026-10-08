@@ -69,8 +69,12 @@ class ConfigManager:
         filename = os.environ.get("PROFILE_MAPPING_FILE", PROFILE_MAPPING_FILE)
         return _resolve_mapping_path(filename, PROJECT_ROOT)
 
-    def get_profile_mapping(self, profile_name: str) -> dict | None:
-        """Return the 1Password mapping entry for a profile, or None."""
+    def load_profile_mappings(self) -> dict[str, object] | None:
+        """Return every 1Password mapping entry, or None if the file is unusable.
+
+        None means the mapping file is missing or malformed, which is different
+        from a readable file that simply has no entry for a given profile.
+        """
         mapping_path = self.get_mapping_path()
         if not os.path.exists(mapping_path):
             print(f"⚠ Profile mapping file not found: {mapping_path}")
@@ -81,8 +85,21 @@ class ConfigManager:
         except json.JSONDecodeError as e:
             print(f"⚠ Error parsing profile mapping file: {e}")
             return None
-        profile_mappings = mapping_data.get("profile_mappings", {})
-        return profile_mappings.get(profile_name)
+        profile_mappings: object = mapping_data.get("profile_mappings", {})
+        if not isinstance(profile_mappings, dict):
+            print("⚠ Profile mappings must be an object")
+            return None
+        return profile_mappings
+
+    def get_profile_mapping(self, profile_name: str) -> dict[str, object] | None:
+        """Return the 1Password mapping entry for a profile, or None."""
+        profile_mappings = self.load_profile_mappings()
+        if profile_mappings is None:
+            return None
+        profile_mapping: object = profile_mappings.get(profile_name)
+        if isinstance(profile_mapping, dict):
+            return profile_mapping
+        return None
 
 
     def get_aws_profiles(self) -> list[dict]:
